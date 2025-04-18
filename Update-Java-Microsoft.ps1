@@ -1,4 +1,3 @@
-
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $false)]
@@ -15,13 +14,64 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-function Get-InstalledJavaVersion {
-    $key = 'HKLM:\SOFTWARE\JavaSoft\Java Development Kit'
-    if (Test-Path $key) {
-        $version = (Get-ItemProperty -Path $key).CurrentVersion
-        return $version
+function Get-InstalledJavaVersions {
+    $javaVersions = @()
+    
+    # Check for JDK installations
+    $jdkPaths = @(
+        "HKLM:\SOFTWARE\JavaSoft\Java Development Kit",
+        "HKLM:\SOFTWARE\JavaSoft\JDK"
+    )
+    
+    foreach ($path in $jdkPaths) {
+        if (Test-Path $path) {
+            $versions = Get-ChildItem $path
+            foreach ($version in $versions) {
+                $javaHome = (Get-ItemProperty -Path "$($version.PSPath)\$($version.PSChildName)").JavaHome
+                if ($javaHome) {
+                    $javaExe = Join-Path $javaHome "bin\java.exe"
+                    if (Test-Path $javaExe) {
+                        $versionInfo = & $javaExe -version 2>&1
+                        $versionString = $versionInfo[0] -replace '.*version "([^"]+)".*', '$1'
+                        $javaVersions += @{
+                            Type = "JDK"
+                            Version = $versionString
+                            Path = $javaHome
+                        }
+                    }
+                }
+            }
+        }
     }
-    return $null
+    
+    # Check for JRE installations
+    $jrePaths = @(
+        "HKLM:\SOFTWARE\JavaSoft\Java Runtime Environment",
+        "HKLM:\SOFTWARE\JavaSoft\JRE"
+    )
+    
+    foreach ($path in $jrePaths) {
+        if (Test-Path $path) {
+            $versions = Get-ChildItem $path
+            foreach ($version in $versions) {
+                $javaHome = (Get-ItemProperty -Path "$($version.PSPath)\$($version.PSChildName)").JavaHome
+                if ($javaHome) {
+                    $javaExe = Join-Path $javaHome "bin\java.exe"
+                    if (Test-Path $javaExe) {
+                        $versionInfo = & $javaExe -version 2>&1
+                        $versionString = $versionInfo[0] -replace '.*version "([^"]+)".*', '$1'
+                        $javaVersions += @{
+                            Type = "JRE"
+                            Version = $versionString
+                            Path = $javaHome
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    return $javaVersions
 }
 
 function Get-LatestMicrosoftOpenJDK {
@@ -90,40 +140,61 @@ function Log-Update {
     $logLine | Export-Csv -Path $LogFile -Append -NoTypeInformation -Force
 }
 
-$current = Get-InstalledJavaVersion
-$latestUrl = Get-LatestMicrosoftOpenJDK
-
-if (-not $latestUrl) {
-    Write-Error "Could not fetch latest Microsoft JDK URL."
-    Log-Update -Status "Failed - No URL" -CurrentVersion $current -UpdatedVersion "N/A"
-    exit 1
-}
-
-if (Is-JavaRunning) {
-    Write-Host "Java is currently running. Please close Java applications before update."
-    Log-Update -Status "Skipped - Java in use" -CurrentVersion $current -UpdatedVersion "N/A"
-    exit 1
-}
-
-if (-not $current -or $latestUrl -notmatch $current) {
-    Write-Host "Installing or updating Java..."
-    Install-Java -InstallerUrl $latestUrl
-    Set-JavaHome
-    Remove-OldJDKs
-    
-$newVersion = Get-InstalledJavaVersion
-if (-not $newVersion) {
-    $jdkPath = Get-ChildItem "$env:ProgramFiles\Microsoft" -Directory | Where-Object { $_.Name -like "jdk*" } | Sort-Object Name -Descending | Select-Object -First 1
-    if ($jdkPath) {
-        $newVersion = $jdkPath.Name -replace 'jdk-', ''
+# Main script execution
+try {
+    # Check and log installed Java versions
+    Write-Host "Checking installed Java versions..."
+    $installedVersions = Get-InstalledJavaVersions
+    if ($installedVersions.Count -gt 0) {
+        Write-Host "Currently installed Java versions:"
+        foreach ($version in $installedVersions) {
+            Write-Host "- $($version.Type) $($version.Version) at $($version.Path)"
+        }
     } else {
-        $newVersion = "Unknown"
+        Write-Host "No Java installations found. This script is designed to update existing Java installations only."
+        Write-Host "Please install Java first before running this update script."
+        exit 0
+    }
+
+    $current = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JDK" } | Select-Object -ExpandProperty Version
+    $latestUrl = Get-LatestMicrosoftOpenJDK
+
+    if (-not $latestUrl) {
+        Write-Error "Could not fetch latest Microsoft JDK URL."
+        Log-Update -Status "Failed - No URL" -CurrentVersion $current -UpdatedVersion "N/A"
+        exit 1
+    }
+
+    if (Is-JavaRunning) {
+        Write-Host "Java is currently running. Please close Java applications before update."
+        Log-Update -Status "Skipped - Java in use" -CurrentVersion $current -UpdatedVersion "N/A"
+        exit 1
+    }
+
+    if (-not $current -or $latestUrl -notmatch $current) {
+        Write-Host "Installing or updating Java..."
+        Install-Java -InstallerUrl $latestUrl
+        Set-JavaHome
+        Remove-OldJDKs
+        
+        $newVersion = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JDK" } | Select-Object -ExpandProperty Version
+        if (-not $newVersion) {
+            $jdkPath = Get-ChildItem "$env:ProgramFiles\Microsoft" -Directory | Where-Object { $_.Name -like "jdk*" } | Sort-Object Name -Descending | Select-Object -First 1
+            if ($jdkPath) {
+                $newVersion = $jdkPath.Name -replace 'jdk-', ''
+            } else {
+                $newVersion = "Unknown"
+            }
+        }
+
+        Write-Host "Java updated to $newVersion"
+        Log-Update -Status "Updated" -CurrentVersion $current -UpdatedVersion $newVersion
+    } else {
+        Write-Host "Java is up to date: $current"
+        Log-Update -Status "Already Up To Date" -CurrentVersion $current -UpdatedVersion $current
     }
 }
-
-    Write-Host "Java updated to $newVersion"
-    Log-Update -Status "Updated" -CurrentVersion $current -UpdatedVersion $newVersion
-} else {
-    Write-Host "Java is up to date: $current"
-    Log-Update -Status "Already Up To Date" -CurrentVersion $current -UpdatedVersion $current
+catch {
+    Write-Error "Script execution failed: $_"
+    exit 1
 }

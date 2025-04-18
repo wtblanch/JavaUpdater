@@ -127,7 +127,9 @@ try {
             Write-Host "- $($version.Type) $($version.Version) at $($version.Path)"
         }
     } else {
-        Write-Host "No Java installations found."
+        Write-Host "No Java installations found. This script is designed to update existing Java installations only."
+        Write-Host "Please install Java first before running this update script."
+        exit 0
     }
     
     $latestVersion = @{
