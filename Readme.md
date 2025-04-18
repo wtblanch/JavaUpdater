@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Java Updater Script
 
 This PowerShell script automatically updates Java JDK and JRE installations to the latest version (currently 21.0.6+7) on Windows systems. It can be run locally or remotely on multiple machines.
@@ -23,14 +22,14 @@ This PowerShell script automatically updates Java JDK and JRE installations to t
 ### Local Installation
 
 ```powershell
-.\Update-Java.ps1
+.\Update-Java-Microsoft.ps1
 ```
 
 ### Remote Installation
 
 ```powershell
 $cred = Get-Credential
-.\Update-Java.ps1 -ComputerName "RemoteComputer" -Credential $cred -Remote
+.\Update-Java-Microsoft.ps1 -ComputerName "RemoteComputer" -Credential $cred -Remote
 ```
 
 ## Parameters
@@ -110,7 +109,7 @@ This repository includes PowerShell scripts to automatically install or update t
 To run the local script even if your execution policy is restrictive:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Update-Java-Microsoft-Enhanced.ps1
+powershell -ExecutionPolicy Bypass -File .\Update-Java-Microsoft.ps1
 ```
 
 This will:
@@ -123,7 +122,7 @@ This will:
 
 ## ☁️ How to Run (Azure Automation)
 
-1. Import `Update-Java-AzureRunbook-Enhanced.ps1` into your Azure Automation Account as a PowerShell Runbook.
+1. Import `Update-Java-AzureRunbook.ps1` into your Azure Automation Account as a PowerShell Runbook.
 2. Provide the following parameters:
    - `WorkspaceId`: Log Analytics Workspace ID
    - `SharedKey`: Primary key for the workspace
@@ -142,7 +141,7 @@ These scripts are unsigned by default. You can either:
 - Unblock the file manually with:
 
 ```powershell
-Unblock-File -Path .\Update-Java-Microsoft-Enhanced.ps1
+Unblock-File -Path .\Update-Java-Microsoft.ps1
 ```
 
 ---
@@ -178,8 +177,8 @@ This repository includes PowerShell scripts to automatically install or update t
 
 | File | Description |
 |------|-------------|
-| `Update-Java-Microsoft-Enhanced.ps1` | Local script for Windows with logging, JAVA_HOME update, and old version cleanup |
-| `Update-Java-AzureRunbook-Enhanced.ps1` | Azure Automation Runbook version that logs results to Log Analytics |
+| `Update-Java-Microsoft.ps1` | Local script for Windows with logging, JAVA_HOME update, and old version cleanup |
+| `Update-Java-AzureRunbook.ps1` | Azure Automation Runbook version that logs results to Log Analytics |
 
 ---
 
@@ -202,7 +201,7 @@ This repository includes PowerShell scripts to automatically install or update t
 To run the local script even if your execution policy is restrictive:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Update-Java-Microsoft-Enhanced.ps1
+powershell -ExecutionPolicy Bypass -File .\Update-Java-Microsoft.ps1
 ```
 
 This will:
@@ -215,7 +214,7 @@ This will:
 
 ## ☁️ How to Run (Azure Automation)
 
-1. Import `Update-Java-AzureRunbook-Enhanced.ps1` into your Azure Automation Account as a PowerShell Runbook.
+1. Import `Update-Java-AzureRunbook.ps1` into your Azure Automation Account as a PowerShell Runbook.
 2. Provide the following parameters:
    - `WorkspaceId`: Log Analytics Workspace ID
    - `SharedKey`: Primary key for the workspace
@@ -234,7 +233,7 @@ These scripts are unsigned by default. You can either:
 - Unblock the file manually with:
 
 ```powershell
-Unblock-File -Path .\Update-Java-Microsoft-Enhanced.ps1
+Unblock-File -Path .\Update-Java-Microsoft.ps1
 ```
 
 ---
@@ -257,5 +256,3 @@ Timestamp,Status,Installed,UpdatedTo,ComputerName
   "ComputerName": "SRV-JAVA01"
 }
 ```
-
->>>>>>> 51281e38a9fc6f743ff1406ddfffd682f9b00461
