@@ -74,8 +74,17 @@ function Get-InstalledJavaVersions {
 }
 
 function Get-LatestMicrosoftOpenJDK {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$Type = "jdk" # can be "jdk" or "jre"
+    )
+    
     $page = Invoke-WebRequest -Uri "https://learn.microsoft.com/en-us/java/openjdk/download" -UseBasicParsing
-    $pattern = 'https:\/\/aka\.ms\/[^"]*jdk-(\d+).*?windows-x64\.msi'
+    $pattern = if ($Type -eq "jdk") {
+        'https:\/\/aka\.ms\/[^"]*jdk-(\d+).*?windows-x64\.msi'
+    } else {
+        'https:\/\/aka\.ms\/[^"]*jre-(\d+).*?windows-x64\.msi'
+    }
     $matches = [regex]::Matches($page.Content, $pattern)
     if ($matches.Count -gt 0) {
         $latest = $matches | Sort-Object { [int]$_.Groups[1].Value } -Descending | Select-Object -First 1
@@ -86,9 +95,10 @@ function Get-LatestMicrosoftOpenJDK {
 
 function Install-Java {
     param (
-        [string]$InstallerUrl
+        [string]$InstallerUrl,
+        [string]$Type = "jdk"
     )
-    $tempPath = "$env:TEMP\msopenjdk.msi"
+    $tempPath = "$env:TEMP\msopenjdk_$Type.msi"
     Invoke-WebRequest -Uri $InstallerUrl -OutFile $tempPath -UseBasicParsing
     Start-Process "msiexec.exe" -ArgumentList "/i `"$tempPath`" /quiet /norestart" -Wait
     Remove-Item $tempPath -Force
@@ -165,7 +175,7 @@ function Build-Signature {
     $sha256.Key = $keyBytes
     $calculatedHash = $sha256.ComputeHash($bytesToHash)
     $encodedHash = [Convert]::ToBase64String($calculatedHash)
-    return "SharedKey $workspaceId:$encodedHash"
+    return "SharedKey ${workspaceId}:${encodedHash}"
 }
 
 # Main script execution
@@ -185,42 +195,49 @@ try {
         exit 0
     }
 
-    $current = $installedVersions[0].Version
-    $latestUrl = Get-LatestMicrosoftOpenJDK
+    $currentJDK = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JDK" } | Select-Object -ExpandProperty Version
+    $currentJRE = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JRE" } | Select-Object -ExpandProperty Version
+    
+    $latestJDKUrl = Get-LatestMicrosoftOpenJDK -Type "jdk"
+    $latestJREUrl = Get-LatestMicrosoftOpenJDK -Type "jre"
 
-    if (-not $latestUrl) {
-        Write-Output "Could not fetch latest Microsoft JDK URL."
-        Send-LogAnalyticsLog -Status "Failed - No URL" -CurrentVersion $current -UpdatedVersion "N/A"
+    if (-not $latestJDKUrl -or -not $latestJREUrl) {
+        Write-Output "Could not fetch latest Microsoft JDK/JRE URLs."
+        Send-LogAnalyticsLog -Status "Failed - No URL" -CurrentVersion "$currentJDK/$currentJRE" -UpdatedVersion "N/A"
         exit 1
     }
 
     if (Is-JavaRunning) {
         Write-Output "Java is currently running. Please close Java applications before update."
-        Send-LogAnalyticsLog -Status "Skipped - Java in use" -CurrentVersion $current -UpdatedVersion "N/A"
+        Send-LogAnalyticsLog -Status "Skipped - Java in use" -CurrentVersion "$currentJDK/$currentJRE" -UpdatedVersion "N/A"
         exit 1
     }
 
-    if (-not $current -or $latestUrl -notmatch $current) {
-        Write-Output "Installing or updating Java..."
-        Install-Java -InstallerUrl $latestUrl
+    $updated = $false
+    if (-not $currentJDK -or $latestJDKUrl -notmatch $currentJDK) {
+        Write-Output "Installing or updating Java JDK..."
+        Install-Java -InstallerUrl $latestJDKUrl -Type "jdk"
+        $updated = $true
+    }
+
+    if (-not $currentJRE -or $latestJREUrl -notmatch $currentJRE) {
+        Write-Output "Installing or updating Java JRE..."
+        Install-Java -InstallerUrl $latestJREUrl -Type "jre"
+        $updated = $true
+    }
+
+    if ($updated) {
         Set-JavaHome
         Remove-OldJDKs
         
-        $newVersion = $installedVersions[0].Version
-        if (-not $newVersion) {
-            $jdkPath = Get-ChildItem "$env:ProgramFiles\Microsoft" -Directory | Where-Object { $_.Name -like "jdk*" } | Sort-Object Name -Descending | Select-Object -First 1
-            if ($jdkPath) {
-                $newVersion = $jdkPath.Name -replace 'jdk-', ''
-            } else {
-                $newVersion = "Unknown"
-            }
-        }
-
-        Write-Output "Java updated to $newVersion"
-        Send-LogAnalyticsLog -Status "Updated" -CurrentVersion $current -UpdatedVersion $newVersion
+        $newJDK = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JDK" } | Select-Object -ExpandProperty Version
+        $newJRE = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JRE" } | Select-Object -ExpandProperty Version
+        
+        Write-Output "Java updated to JDK: $newJDK, JRE: $newJRE"
+        Send-LogAnalyticsLog -Status "Updated" -CurrentVersion "$currentJDK/$currentJRE" -UpdatedVersion "$newJDK/$newJRE"
     } else {
-        Write-Output "Java is already up to date: $current"
-        Send-LogAnalyticsLog -Status "Already Up To Date" -CurrentVersion $current -UpdatedVersion $current
+        Write-Output "Java is already up to date: JDK: $currentJDK, JRE: $currentJRE"
+        Send-LogAnalyticsLog -Status "Already Up To Date" -CurrentVersion "$currentJDK/$currentJRE" -UpdatedVersion "$currentJDK/$currentJRE"
     }
 }
 catch {

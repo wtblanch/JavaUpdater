@@ -1,0 +1,1 @@
+powershell -ExecutionPolicy Bypass -File .\Update-Java-Microsoft.ps1

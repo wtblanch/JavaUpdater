@@ -75,8 +75,17 @@ function Get-InstalledJavaVersions {
 }
 
 function Get-LatestMicrosoftOpenJDK {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$Type = "jdk" # can be "jdk" or "jre"
+    )
+    
     $page = Invoke-WebRequest -Uri "https://learn.microsoft.com/en-us/java/openjdk/download" -UseBasicParsing
-    $pattern = 'https:\/\/aka\.ms\/[^"]*jdk-(\d+).*?windows-x64\.msi'
+    $pattern = if ($Type -eq "jdk") {
+        'https:\/\/aka\.ms\/[^"]*jdk-(\d+).*?windows-x64\.msi'
+    } else {
+        'https:\/\/aka\.ms\/[^"]*jre-(\d+).*?windows-x64\.msi'
+    }
     $matches = [regex]::Matches($page.Content, $pattern)
     if ($matches.Count -gt 0) {
         $latest = $matches | Sort-Object { [int]$_.Groups[1].Value } -Descending | Select-Object -First 1
@@ -87,9 +96,10 @@ function Get-LatestMicrosoftOpenJDK {
 
 function Install-Java {
     param (
-        [string]$InstallerUrl
+        [string]$InstallerUrl,
+        [string]$Type = "jdk"
     )
-    $tempPath = "$env:TEMP\msopenjdk.msi"
+    $tempPath = "$env:TEMP\msopenjdk_$Type.msi"
     Invoke-WebRequest -Uri $InstallerUrl -OutFile $tempPath -UseBasicParsing
     Start-Process "msiexec.exe" -ArgumentList "/i `"$tempPath`" /quiet /norestart" -Wait
     Remove-Item $tempPath -Force
@@ -156,42 +166,49 @@ try {
         exit 0
     }
 
-    $current = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JDK" } | Select-Object -ExpandProperty Version
-    $latestUrl = Get-LatestMicrosoftOpenJDK
+    $currentJDK = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JDK" } | Select-Object -ExpandProperty Version
+    $currentJRE = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JRE" } | Select-Object -ExpandProperty Version
+    
+    $latestJDKUrl = Get-LatestMicrosoftOpenJDK -Type "jdk"
+    $latestJREUrl = Get-LatestMicrosoftOpenJDK -Type "jre"
 
-    if (-not $latestUrl) {
-        Write-Error "Could not fetch latest Microsoft JDK URL."
-        Log-Update -Status "Failed - No URL" -CurrentVersion $current -UpdatedVersion "N/A"
+    if (-not $latestJDKUrl -or -not $latestJREUrl) {
+        Write-Error "Could not fetch latest Microsoft JDK/JRE URLs."
+        Log-Update -Status "Failed - No URL" -CurrentVersion "$currentJDK/$currentJRE" -UpdatedVersion "N/A"
         exit 1
     }
 
     if (Is-JavaRunning) {
         Write-Host "Java is currently running. Please close Java applications before update."
-        Log-Update -Status "Skipped - Java in use" -CurrentVersion $current -UpdatedVersion "N/A"
+        Log-Update -Status "Skipped - Java in use" -CurrentVersion "$currentJDK/$currentJRE" -UpdatedVersion "N/A"
         exit 1
     }
 
-    if (-not $current -or $latestUrl -notmatch $current) {
-        Write-Host "Installing or updating Java..."
-        Install-Java -InstallerUrl $latestUrl
+    $updated = $false
+    if (-not $currentJDK -or $latestJDKUrl -notmatch $currentJDK) {
+        Write-Host "Installing or updating Java JDK..."
+        Install-Java -InstallerUrl $latestJDKUrl -Type "jdk"
+        $updated = $true
+    }
+
+    if (-not $currentJRE -or $latestJREUrl -notmatch $currentJRE) {
+        Write-Host "Installing or updating Java JRE..."
+        Install-Java -InstallerUrl $latestJREUrl -Type "jre"
+        $updated = $true
+    }
+
+    if ($updated) {
         Set-JavaHome
         Remove-OldJDKs
         
-        $newVersion = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JDK" } | Select-Object -ExpandProperty Version
-        if (-not $newVersion) {
-            $jdkPath = Get-ChildItem "$env:ProgramFiles\Microsoft" -Directory | Where-Object { $_.Name -like "jdk*" } | Sort-Object Name -Descending | Select-Object -First 1
-            if ($jdkPath) {
-                $newVersion = $jdkPath.Name -replace 'jdk-', ''
-            } else {
-                $newVersion = "Unknown"
-            }
-        }
-
-        Write-Host "Java updated to $newVersion"
-        Log-Update -Status "Updated" -CurrentVersion $current -UpdatedVersion $newVersion
+        $newJDK = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JDK" } | Select-Object -ExpandProperty Version
+        $newJRE = Get-InstalledJavaVersions | Where-Object { $_.Type -eq "JRE" } | Select-Object -ExpandProperty Version
+        
+        Write-Host "Java updated to JDK: $newJDK, JRE: $newJRE"
+        Log-Update -Status "Updated" -CurrentVersion "$currentJDK/$currentJRE" -UpdatedVersion "$newJDK/$newJRE"
     } else {
-        Write-Host "Java is up to date: $current"
-        Log-Update -Status "Already Up To Date" -CurrentVersion $current -UpdatedVersion $current
+        Write-Host "Java is up to date: JDK: $currentJDK, JRE: $currentJRE"
+        Log-Update -Status "Already Up To Date" -CurrentVersion "$currentJDK/$currentJRE" -UpdatedVersion "$currentJDK/$currentJRE"
     }
 }
 catch {
