@@ -1,1 +1,1 @@
-powershell -ExecutionPolicy Bypass -File .\Update-Java-Microsoft.ps1
+powershell -ExecutionPolicy Bypass -File .\Update-Java-Distribution.ps1
