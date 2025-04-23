@@ -1,258 +1,125 @@
-# Java Updater Script
+# Java Distribution Updater for Windows
 
-This PowerShell script automatically updates Java JDK and JRE installations to the latest version (currently 21.0.6+7) on Windows systems. It can be run locally or remotely on multiple machines.
-
-## Features
-
-- Automatically detects and logs currently installed Java versions (both JDK and JRE)
-- Downloads and installs the latest Java version (21.0.6+7)
-- Supports both local and remote execution
-- Silent installation (no user interaction required)
-- Verifies and logs new installations after completion
-- Self-elevates to administrator privileges when needed
-
-## Prerequisites
-
-- Windows PowerShell 5.1 or later
-- Administrator privileges
-- Internet connection for downloading Java installers
-
-## Usage
-
-### Local Installation
-
-```powershell
-.\Update-Java-Microsoft.ps1
-```
-
-### Remote Installation
-
-```powershell
-$cred = Get-Credential
-.\Update-Java-Microsoft.ps1 -ComputerName "RemoteComputer" -Credential $cred -Remote
-```
-
-## Parameters
-
-- `-ComputerName`: (Optional) Target computer name for remote installation. Defaults to local computer.
-- `-Credential`: (Optional) PSCredential object for remote installation.
-- `-Remote`: (Switch) Enables remote installation mode.
-
-## Output
-
-The script provides detailed output about:
-1. Currently installed Java versions before upgrade
-2. Installation progress
-3. Verification of new installations after upgrade
-
-Example output:
-```
-Checking installed Java versions...
-Currently installed Java versions:
-- JDK 17.0.1 at C:\Program Files\Java\jdk-17.0.1
-- JRE 17.0.1 at C:\Program Files\Java\jre-17.0.1
-
-[Installation process...]
-
-Verifying new Java installations...
-Current Java versions after installation:
-- JDK 21.0.6+7 at C:\Program Files\Java\jdk-21.0.6+7
-- JRE 21.0.6+7 at C:\Program Files\Java\jre-21.0.6+7
-```
-
-## Notes
-
-- The script uses the following download URLs:
-  - JDK: https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_windows_hotspot_21.0.6_7.msi
-  - JRE: https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jre_x64_windows_hotspot_21.0.6_7.msi
-- Installation is performed silently using MSI
-- Temporary files are automatically cleaned up after installation
-- The script requires administrator privileges to run
-
-## Error Handling
-
-- The script will stop on any error and provide detailed error messages
-- Failed installations will be reported with specific error details
-- Network connectivity issues will be clearly indicated
-
-# Microsoft OpenJDK Updater for Windows
-
-This repository includes PowerShell scripts to automatically install or update the **Microsoft Build of OpenJDK** on Windows machines. The update process detects the latest available version from the official Microsoft OpenJDK site and installs it silently.
-
----
+This repository includes PowerShell scripts to automatically install or update multiple Java distributions (Oracle JDK, OpenJDK, Microsoft Build of OpenJDK) on Windows machines. The update process detects and manages different Java distributions, supporting both local execution and Azure Automation deployment.
 
 ## 📁 Files Included
 
 | File | Description |
 |------|-------------|
-| `Update-Java-Microsoft.ps1` | Local script for Windows with logging, JAVA_HOME update, and old version cleanup |
-| `Update-Java-AzureRunbook.ps1` | Azure Automation Runbook version that logs results to Log Analytics |
-
----
+| `Update-Java-Distribution.ps1` | Local script for updating multiple Java distributions with logging and cleanup |
+| `Update-Java-Distribution-AzureRunbook.ps1` | Azure Automation Runbook version that logs results to Log Analytics |
 
 ## ✅ Features
 
-- Automatically fetches latest Microsoft OpenJDK `.msi` installer
-- Checks if Java is currently running before upgrade
-- Silently installs or upgrades OpenJDK
-- Sets `JAVA_HOME` for all users (machine scope)
-- Removes old versions after successful update
-- Logs update results:
-  - To a CSV file (for local script)
-  - To Azure Log Analytics (for runbook)
-- Detects version from registry or installed folder
+- Supports multiple Java distributions:
+  - Oracle JDK (version 24)
+  - Eclipse Adoptium OpenJDK/JRE (version 21.0.6+7)
+  - Microsoft Build of OpenJDK
+- Automatic detection of installed distributions
+- Silent installation and updates
+- Comprehensive logging:
+  - Local CSV logging
+  - Azure Log Analytics integration for runbook version
+- Distribution-specific installation paths and configurations
+- Cleanup of temporary files
+- Error handling and detailed status reporting
 
----
+## 🖥️ Local Execution
 
-## 🖥️ How to Run (Locally)
-
-To run the local script even if your execution policy is restrictive:
+To run the local script:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Update-Java-Microsoft.ps1
+.\Update-Java-Distribution.ps1
 ```
 
 This will:
-- Install or upgrade to the latest OpenJDK if needed
-- Write logs to `JavaUpdateLog.csv` in the script folder
+- Detect all installed Java distributions
+- Update each distribution if needed
+- Log results to local CSV file
 
-> 💡 Make sure you run the script **as administrator**.
+## ☁️ Azure Automation Setup
 
----
+1. Import `Update-Java-Distribution-AzureRunbook.ps1` into your Azure Automation account
+2. Configure required parameters:
+   ```powershell
+   Required:
+   - WorkspaceId    : Log Analytics Workspace ID
+   - SharedKey      : Log Analytics Workspace Primary/Secondary Key
+   
+   Optional:
+   - LogType        : Custom log type (default: JavaUpdateLog)
+   - ComputerName   : Target computer name (default: local computer)
+   ```
+3. Create Automation variables:
+   - Create `WorkspaceId` variable with your Log Analytics Workspace ID
+   - Create `SharedKey` variable with your Log Analytics Primary Key
+4. Schedule the runbook as needed
 
-## ☁️ How to Run (Azure Automation)
+## 📊 Log Analytics Integration
 
-1. Import `Update-Java-AzureRunbook.ps1` into your Azure Automation Account as a PowerShell Runbook.
-2. Provide the following parameters:
-   - `WorkspaceId`: Log Analytics Workspace ID
-   - `SharedKey`: Primary key for the workspace
-   - `LogType`: *(optional)* default is `JavaUpdateLog`
-3. Schedule the runbook as needed
+### Sample KQL Queries
 
-The update logs will appear in Azure Monitor under **Custom Logs**.
-
----
-
-## 🛡️ Note on Execution Policy
-
-These scripts are unsigned by default. You can either:
-
-- Use `-ExecutionPolicy Bypass` for local runs
-- Unblock the file manually with:
-
-```powershell
-Unblock-File -Path .\Update-Java-Microsoft.ps1
+Query all updates in the last 7 days:
+```kusto
+JavaUpdateLog_CL
+| where TimeGenerated > ago(7d)
+| project TimeGenerated, Distribution_s, Status_s, CurrentVersion_s, UpdatedVersion_s, ComputerName_s
+| order by TimeGenerated desc
 ```
 
----
-
-## 📄 Log Output Format
-
-### Local CSV Example
-```csv
-Timestamp,Status,Installed,UpdatedTo,ComputerName
-2025-04-16 23:14:00,Updated,21.0.5,21.0.6,MY-PC
+Find failed updates:
+```kusto
+JavaUpdateLog_CL
+| where Status_s == "Update Failed"
+| project TimeGenerated, Distribution_s, ComputerName_s, CurrentVersion_s
 ```
 
-### Azure Log Analytics Example (JavaUpdateLog)
+### Log Schema
+
 ```json
 {
-  "TimeGenerated": "2025-04-16T23:45:00Z",
+  "TimeGenerated": "2024-01-20T10:30:00Z",
+  "Distribution": "Oracle JDK",
   "Status": "Updated",
-  "Installed": "21.0.5",
-  "UpdatedTo": "21.0.6",
-  "ComputerName": "SRV-JAVA01"
+  "CurrentVersion": "17.0.9",
+  "UpdatedVersion": "24",
+  "ComputerName": "DESKTOP-ABC123"
 }
 ```
 
-=======
+## 🔄 Supported Java Versions
 
-# Microsoft OpenJDK Updater for Windows
+| Distribution | Latest Version | Download Source |
+|--------------|---------------|-----------------|
+| Oracle JDK | 24 | Oracle Technology Network |
+| OpenJDK/JRE | 21.0.6+7 | Eclipse Adoptium |
+| Microsoft JDK | Latest | Microsoft OpenJDK |
 
-This repository includes PowerShell scripts to automatically install or update the **Microsoft Build of OpenJDK** on Windows machines. The update process detects the latest available version from the official Microsoft OpenJDK site and installs it silently.
+## 🛡️ Security Notes
 
----
+- Scripts require administrative privileges
+- Uses HTTPS for all downloads
+- Verifies downloads before installation
+- Supports both local and domain authentication
+- Cleans up temporary files after installation
 
-## 📁 Files Included
+## 🔍 Troubleshooting
 
-| File | Description |
-|------|-------------|
-| `Update-Java-Microsoft.ps1` | Local script for Windows with logging, JAVA_HOME update, and old version cleanup |
-| `Update-Java-AzureRunbook.ps1` | Azure Automation Runbook version that logs results to Log Analytics |
+Logs can be found in:
+- Local execution: Check `JavaUpdateLog.csv` in script directory
+- Azure Runbook: Check Log Analytics under custom logs (`JavaUpdateLog_CL`)
 
----
+Common issues:
+1. Access Denied: Run with administrative privileges
+2. Network Issues: Verify connectivity to download sources
+3. Installation Failures: Check Windows Event Logs
 
-## ✅ Features
+## 📝 Contributing
 
-- Automatically fetches latest Microsoft OpenJDK `.msi` installer
-- Checks if Java is currently running before upgrade
-- Silently installs or upgrades OpenJDK
-- Sets `JAVA_HOME` for all users (machine scope)
-- Removes old versions after successful update
-- Logs update results:
-  - To a CSV file (for local script)
-  - To Azure Log Analytics (for runbook)
-- Detects version from registry or installed folder
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
 
----
+## 📄 License
 
-## 🖥️ How to Run (Locally)
-
-To run the local script even if your execution policy is restrictive:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\Update-Java-Microsoft.ps1
-```
-
-This will:
-- Install or upgrade to the latest OpenJDK if needed
-- Write logs to `JavaUpdateLog.csv` in the script folder
-
-> 💡 Make sure you run the script **as administrator**.
-
----
-
-## ☁️ How to Run (Azure Automation)
-
-1. Import `Update-Java-AzureRunbook.ps1` into your Azure Automation Account as a PowerShell Runbook.
-2. Provide the following parameters:
-   - `WorkspaceId`: Log Analytics Workspace ID
-   - `SharedKey`: Primary key for the workspace
-   - `LogType`: *(optional)* default is `JavaUpdateLog`
-3. Schedule the runbook as needed
-
-The update logs will appear in Azure Monitor under **Custom Logs**.
-
----
-
-## 🛡️ Note on Execution Policy
-
-These scripts are unsigned by default. You can either:
-
-- Use `-ExecutionPolicy Bypass` for local runs
-- Unblock the file manually with:
-
-```powershell
-Unblock-File -Path .\Update-Java-Microsoft.ps1
-```
-
----
-
-## 📄 Log Output Format
-
-### Local CSV Example
-```csv
-Timestamp,Status,Installed,UpdatedTo,ComputerName
-2025-04-16 23:14:00,Updated,21.0.5,21.0.6,MY-PC
-```
-
-### Azure Log Analytics Example (JavaUpdateLog)
-```json
-{
-  "TimeGenerated": "2025-04-16T23:45:00Z",
-  "Status": "Updated",
-  "Installed": "21.0.5",
-  "UpdatedTo": "21.0.6",
-  "ComputerName": "SRV-JAVA01"
-}
-```
+MIT License - See LICENSE file for details
