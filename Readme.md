@@ -11,8 +11,7 @@ This repository includes PowerShell scripts to automatically install or update m
 |------|-------------|
 | `Update-Java-Distribution.ps1` | Local script for updating multiple Java distributions with logging and cleanup |
 | `Update-Java-Distribution-AzureRunbook.ps1` | Azure Automation Runbook version that logs results to Log Analytics |
-| `Update-Java-Distribution.ps1` | Local script for updating multiple Java distributions with logging and cleanup |
-| `Update-Java-Distribution-AzureRunbook.ps1` | Azure Automation Runbook version that logs results to Log Analytics |
+
 
 ## ✅ Features
 
@@ -46,10 +45,8 @@ This repository includes PowerShell scripts to automatically install or update m
 ## 🖥️ Local Execution
 
 To run the local script:
-To run the local script:
 
 ```powershell
-.\Update-Java-Distribution.ps1
 .\Update-Java-Distribution.ps1
 ```
 
@@ -99,8 +96,6 @@ JavaUpdateLog_CL
 | where Status_s == "Update Failed"
 | project TimeGenerated, Distribution_s, ComputerName_s, CurrentVersion_s
 ```
-
-### Log Schema
 
 ### Log Schema
 
