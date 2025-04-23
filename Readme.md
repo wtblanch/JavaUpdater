@@ -1,11 +1,16 @@
 # Java Distribution Updater for Windows
 
 This repository includes PowerShell scripts to automatically install or update multiple Java distributions (Oracle JDK, OpenJDK, Microsoft Build of OpenJDK) on Windows machines. The update process detects and manages different Java distributions, supporting both local execution and Azure Automation deployment.
+# Java Distribution Updater for Windows
+
+This repository includes PowerShell scripts to automatically install or update multiple Java distributions (Oracle JDK, OpenJDK, Microsoft Build of OpenJDK) on Windows machines. The update process detects and manages different Java distributions, supporting both local execution and Azure Automation deployment.
 
 ## 📁 Files Included
 
 | File | Description |
 |------|-------------|
+| `Update-Java-Distribution.ps1` | Local script for updating multiple Java distributions with logging and cleanup |
+| `Update-Java-Distribution-AzureRunbook.ps1` | Azure Automation Runbook version that logs results to Log Analytics |
 | `Update-Java-Distribution.ps1` | Local script for updating multiple Java distributions with logging and cleanup |
 | `Update-Java-Distribution-AzureRunbook.ps1` | Azure Automation Runbook version that logs results to Log Analytics |
 
@@ -25,10 +30,26 @@ This repository includes PowerShell scripts to automatically install or update m
 - Error handling and detailed status reporting
 
 ## 🖥️ Local Execution
+- Supports multiple Java distributions:
+  - Oracle JDK (version 24)
+  - Eclipse Adoptium OpenJDK/JRE (version 21.0.6+7)
+  - Microsoft Build of OpenJDK
+- Automatic detection of installed distributions
+- Silent installation and updates
+- Comprehensive logging:
+  - Local CSV logging
+  - Azure Log Analytics integration for runbook version
+- Distribution-specific installation paths and configurations
+- Cleanup of temporary files
+- Error handling and detailed status reporting
 
+## 🖥️ Local Execution
+
+To run the local script:
 To run the local script:
 
 ```powershell
+.\Update-Java-Distribution.ps1
 .\Update-Java-Distribution.ps1
 ```
 
@@ -81,11 +102,18 @@ JavaUpdateLog_CL
 
 ### Log Schema
 
+### Log Schema
+
 ```json
 {
   "TimeGenerated": "2024-01-20T10:30:00Z",
   "Distribution": "Oracle JDK",
+  "TimeGenerated": "2024-01-20T10:30:00Z",
+  "Distribution": "Oracle JDK",
   "Status": "Updated",
+  "CurrentVersion": "17.0.9",
+  "UpdatedVersion": "24",
+  "ComputerName": "DESKTOP-ABC123"
   "CurrentVersion": "17.0.9",
   "UpdatedVersion": "24",
   "ComputerName": "DESKTOP-ABC123"
