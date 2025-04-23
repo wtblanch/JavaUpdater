@@ -114,12 +114,4 @@ Common issues:
 2. Network Issues: Verify connectivity to download sources
 3. Installation Failures: Check Windows Event Logs
 
-## 📝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
-## 📄 License
-
-MIT License - See LICENSE file for details
